@@ -1,0 +1,301 @@
+import type {
+  ApiSourceFormConfig,
+  GeneralAdaptorConfig,
+  GeneralAdaptorConfigExport,
+  HrmsAuthFormConfig,
+} from '../types/hrmsConfig';
+import { DEFAULT_API_KEY_HEADER } from '../constants/hrmsAuth';
+import {
+  encryptSecretValue,
+  isLikelyEncryptedValue,
+} from './encryptionService';
+
+export function createDefaultAuthConfig(): HrmsAuthFormConfig {
+  return {
+    auth_type: 'basic',
+    content_type: 'application/json',
+    body_type: 'none',
+    user: '',
+    password: '',
+    password_is_already_encrypted: false,
+    bearer_token: '',
+    bearer_token_is_already_encrypted: false,
+    token: '',
+    token_is_already_encrypted: false,
+    api_key: '',
+    api_key_is_already_encrypted: false,
+    api_key_header: DEFAULT_API_KEY_HEADER,
+    body_fields: [{ key: '', value: '', is_already_encrypted: false }],
+    body_xml: '',
+    body_xml_is_already_encrypted: false,
+  };
+}
+
+export function createDefaultApiSource(): ApiSourceFormConfig {
+  return {
+    source_id: `source-${Date.now()}`,
+    name: '',
+    data_url: '',
+    method: 'post',
+    response_list_path: '',
+    headers: [{ key: '', value: '' }],
+    auth: createDefaultAuthConfig(),
+  };
+}
+
+export function createDefaultGeneralAdaptorConfigForm(): GeneralAdaptorConfig {
+  return {
+    api_sources: [createDefaultApiSource()],
+  };
+}
+
+function keyValueRowsToRecord(
+  rows: Array<{ key: string; value: string }>,
+): Record<string, string> | undefined {
+  const record = Object.fromEntries(
+    rows
+      .filter((row) => row.key.trim().length > 0)
+      .map((row) => [row.key.trim(), row.value]),
+  );
+
+  return Object.keys(record).length > 0 ? record : undefined;
+}
+
+function buildAuthBodyExport(auth: HrmsAuthFormConfig): string | Record<string, string> | undefined {
+  if (auth.body_type === 'xml') {
+    return auth.body_xml.trim() || undefined;
+  }
+
+  if (auth.body_type === 'json' || auth.body_type === 'form') {
+    const body = Object.fromEntries(
+      auth.body_fields
+        .filter((field) => field.key.trim().length > 0)
+        .map((field) => [field.key.trim(), field.value]),
+    );
+
+    return Object.keys(body).length > 0 ? body : undefined;
+  }
+
+  return undefined;
+}
+
+function buildAuthExport(auth: HrmsAuthFormConfig): Record<string, unknown> {
+  const export_auth: Record<string, unknown> = {
+    auth_type: auth.auth_type,
+    body_type: auth.body_type,
+  };
+
+  if (auth.content_type.trim()) {
+    export_auth.content_type = auth.content_type.trim();
+  }
+
+  if (auth.auth_type === 'basic') {
+    export_auth.user = auth.user;
+    export_auth.password = auth.password;
+  }
+
+  if (auth.auth_type === 'bearer') {
+    if (auth.bearer_token.trim()) export_auth.bearer_token = auth.bearer_token;
+    if (auth.token.trim()) export_auth.token = auth.token;
+  }
+
+  if (auth.auth_type === 'api_key') {
+    export_auth.api_key = auth.api_key;
+    if (auth.api_key_header.trim()) {
+      export_auth.api_key_header = auth.api_key_header.trim();
+    }
+  }
+
+  const body = buildAuthBodyExport(auth);
+  if (body !== undefined) {
+    export_auth.body = body;
+  }
+
+  return export_auth;
+}
+
+function buildApiSourceExport(source: ApiSourceFormConfig) {
+  const headers = keyValueRowsToRecord(source.headers);
+
+  return {
+    ...(source.name.trim() ? { name: source.name.trim() } : {}),
+    data_url: source.data_url.trim(),
+    method: source.method,
+    ...(source.response_list_path.trim()
+      ? { response_list_path: source.response_list_path.trim() }
+      : {}),
+    ...(headers ? { headers } : {}),
+    auth: buildAuthExport(source.auth),
+  };
+}
+
+export function buildGeneralAdaptorConfigExport(
+  config: GeneralAdaptorConfig,
+): GeneralAdaptorConfigExport {
+  const api_sources = config.api_sources
+    .map(buildApiSourceExport)
+    .filter((source) => source.data_url && source.auth);
+
+  return { api_sources };
+}
+
+async function encryptAuthSecret(
+  value: string,
+  is_already_encrypted: boolean,
+  api_base_url: string,
+): Promise<string> {
+  if (!value.trim() || is_already_encrypted || isLikelyEncryptedValue(value)) {
+    return value;
+  }
+
+  return encryptSecretValue(value, api_base_url);
+}
+
+async function encryptAuthConfig(
+  auth: HrmsAuthFormConfig,
+  api_base_url: string,
+): Promise<HrmsAuthFormConfig> {
+  const next_auth = { ...auth };
+
+  if (auth.auth_type === 'basic') {
+    next_auth.password = await encryptAuthSecret(
+      auth.password,
+      auth.password_is_already_encrypted,
+      api_base_url,
+    );
+  }
+
+  if (auth.auth_type === 'bearer') {
+    next_auth.bearer_token = await encryptAuthSecret(
+      auth.bearer_token,
+      auth.bearer_token_is_already_encrypted,
+      api_base_url,
+    );
+    next_auth.token = await encryptAuthSecret(
+      auth.token,
+      auth.token_is_already_encrypted,
+      api_base_url,
+    );
+  }
+
+  if (auth.auth_type === 'api_key') {
+    next_auth.api_key = await encryptAuthSecret(
+      auth.api_key,
+      auth.api_key_is_already_encrypted,
+      api_base_url,
+    );
+  }
+
+  if (auth.body_type === 'xml') {
+    next_auth.body_xml = await encryptAuthSecret(
+      auth.body_xml,
+      auth.body_xml_is_already_encrypted,
+      api_base_url,
+    );
+    return next_auth;
+  }
+
+  if (auth.body_type === 'json' || auth.body_type === 'form') {
+    next_auth.body_fields = await Promise.all(
+      auth.body_fields.map(async (field) => ({
+        ...field,
+        value: await encryptAuthSecret(field.value, field.is_already_encrypted, api_base_url),
+      })),
+    );
+  }
+
+  return next_auth;
+}
+
+export async function buildEncryptedGeneralAdaptorConfigExport(
+  config: GeneralAdaptorConfig,
+  api_base_url: string,
+): Promise<GeneralAdaptorConfigExport> {
+  const encrypted_sources = await Promise.all(
+    config.api_sources.map(async (source) => ({
+      ...source,
+      auth: await encryptAuthConfig(source.auth, api_base_url),
+    })),
+  );
+
+  return buildGeneralAdaptorConfigExport({ api_sources: encrypted_sources });
+}
+
+export function parseGeneralAdaptorConfigImport(
+  parsed_json: Record<string, unknown>,
+): GeneralAdaptorConfig {
+  const api_sources = Array.isArray(parsed_json.api_sources)
+    ? parsed_json.api_sources.map((source, index) => parseApiSourceImport(source, index))
+    : [createDefaultApiSource()];
+
+  return { api_sources };
+}
+
+function parseApiSourceImport(source: Record<string, unknown>, index: number): ApiSourceFormConfig {
+  const auth = parseAuthImport((source.auth as Record<string, unknown>) ?? {});
+  const headers = parseKeyValueImport(source.headers);
+
+  return {
+    source_id: `source-import-${index}`,
+    name: String(source.name ?? ''),
+    data_url: String(source.data_url ?? ''),
+    method: source.method === 'get' ? 'get' : 'post',
+    response_list_path: String(source.response_list_path ?? ''),
+    headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
+    auth,
+  };
+}
+
+function parseKeyValueImport(value: unknown): Array<{ key: string; value: string }> {
+  if (!value || typeof value !== 'object') return [];
+
+  return Object.entries(value as Record<string, unknown>).map(([key, field_value]) => ({
+    key,
+    value: String(field_value ?? ''),
+  }));
+}
+
+function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
+  const default_auth = createDefaultAuthConfig();
+  const body_type = String(auth.body_type ?? 'none');
+  const parsed_body_type =
+    body_type === 'json' || body_type === 'form' || body_type === 'xml' ? body_type : 'none';
+
+  const parsed_auth: HrmsAuthFormConfig = {
+    ...default_auth,
+    auth_type:
+      auth.auth_type === 'bearer' || auth.auth_type === 'api_key' ? auth.auth_type : 'basic',
+    content_type: String(auth.content_type ?? 'application/json'),
+    body_type: parsed_body_type,
+    user: String(auth.user ?? ''),
+    password: String(auth.password ?? ''),
+    password_is_already_encrypted: isLikelyEncryptedValue(String(auth.password ?? '')),
+    bearer_token: String(auth.bearer_token ?? ''),
+    bearer_token_is_already_encrypted: isLikelyEncryptedValue(String(auth.bearer_token ?? '')),
+    token: String(auth.token ?? ''),
+    token_is_already_encrypted: isLikelyEncryptedValue(String(auth.token ?? '')),
+    api_key: String(auth.api_key ?? ''),
+    api_key_is_already_encrypted: isLikelyEncryptedValue(String(auth.api_key ?? '')),
+    api_key_header: String(auth.api_key_header ?? DEFAULT_API_KEY_HEADER),
+    body_xml: typeof auth.body === 'string' ? auth.body : '',
+    body_xml_is_already_encrypted:
+      typeof auth.body === 'string' && isLikelyEncryptedValue(auth.body),
+    body_fields: parseBodyFieldsImport(auth.body),
+  };
+
+  return parsed_auth;
+}
+
+function parseBodyFieldsImport(body: unknown): HrmsAuthFormConfig['body_fields'] {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return [{ key: '', value: '', is_already_encrypted: false }];
+  }
+
+  const fields = Object.entries(body as Record<string, unknown>).map(([key, value]) => ({
+    key,
+    value: String(value ?? ''),
+    is_already_encrypted: isLikelyEncryptedValue(String(value ?? '')),
+  }));
+
+  return fields.length > 0 ? fields : [{ key: '', value: '', is_already_encrypted: false }];
+}
