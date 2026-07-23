@@ -1,10 +1,16 @@
 import type {
   ApiSourceFormConfig,
+  ApiSourcePaginationExport,
+  ApiSourcePaginationForm,
   GeneralAdaptorConfig,
   GeneralAdaptorConfigExport,
   HrmsAuthFormConfig,
 } from '../types/hrmsConfig';
-import { DEFAULT_API_KEY_HEADER } from '../constants/hrmsAuth';
+import {
+  DEFAULT_API_KEY_HEADER,
+  DEFAULT_PAGINATION_DATE_FORMAT,
+  DEFAULT_PAGINATION_PAGE_SIZE,
+} from '../constants/hrmsAuth';
 import { isLikelyEncryptedValue } from './encryptionService';
 
 export function createDefaultAuthConfig(): HrmsAuthFormConfig {
@@ -28,6 +34,15 @@ export function createDefaultAuthConfig(): HrmsAuthFormConfig {
   };
 }
 
+export function createDefaultPaginationConfig(): ApiSourcePaginationForm {
+  return {
+    is_enabled: false,
+    page_size: DEFAULT_PAGINATION_PAGE_SIZE,
+    date_format: DEFAULT_PAGINATION_DATE_FORMAT,
+    default_from_date: '',
+  };
+}
+
 export function createDefaultApiSource(): ApiSourceFormConfig {
   return {
     source_id: `source-${Date.now()}`,
@@ -36,6 +51,8 @@ export function createDefaultApiSource(): ApiSourceFormConfig {
     method: 'post',
     response_list_path: '',
     headers: [{ key: '', value: '' }],
+    request_body_fields: [{ key: '', value: '' }],
+    pagination: createDefaultPaginationConfig(),
     auth: createDefaultAuthConfig(),
   };
 }
@@ -56,6 +73,24 @@ function keyValueRowsToRecord(
   );
 
   return Object.keys(record).length > 0 ? record : undefined;
+}
+
+function buildPaginationExport(
+  pagination: ApiSourcePaginationForm,
+): ApiSourcePaginationExport | undefined {
+  if (!pagination.is_enabled) return undefined;
+
+  const page_size = Number(pagination.page_size);
+  const export_pagination: ApiSourcePaginationExport = {
+    page_size: Number.isFinite(page_size) && page_size > 0 ? page_size : 100,
+    date_format: pagination.date_format.trim() || DEFAULT_PAGINATION_DATE_FORMAT,
+  };
+
+  if (pagination.default_from_date.trim()) {
+    export_pagination.default_from_date = pagination.default_from_date.trim();
+  }
+
+  return export_pagination;
 }
 
 function buildAuthBodyExport(auth: HrmsAuthFormConfig): string | Record<string, string> | undefined {
@@ -113,6 +148,8 @@ function buildAuthExport(auth: HrmsAuthFormConfig): Record<string, unknown> {
 
 function buildApiSourceExport(source: ApiSourceFormConfig) {
   const headers = keyValueRowsToRecord(source.headers);
+  const request_body = keyValueRowsToRecord(source.request_body_fields);
+  const pagination = buildPaginationExport(source.pagination);
 
   return {
     ...(source.name.trim() ? { name: source.name.trim() } : {}),
@@ -122,6 +159,8 @@ function buildApiSourceExport(source: ApiSourceFormConfig) {
       ? { response_list_path: source.response_list_path.trim() }
       : {}),
     ...(headers ? { headers } : {}),
+    ...(request_body ? { request_body } : {}),
+    ...(pagination ? { pagination } : {}),
     auth: buildAuthExport(source.auth),
   };
 }
@@ -149,6 +188,7 @@ export function parseGeneralAdaptorConfigImport(
 function parseApiSourceImport(source: Record<string, unknown>, index: number): ApiSourceFormConfig {
   const auth = parseAuthImport((source.auth as Record<string, unknown>) ?? {});
   const headers = parseKeyValueImport(source.headers);
+  const request_body_fields = parseKeyValueImport(source.request_body);
 
   return {
     source_id: `source-import-${index}`,
@@ -157,7 +197,25 @@ function parseApiSourceImport(source: Record<string, unknown>, index: number): A
     method: source.method === 'get' ? 'get' : 'post',
     response_list_path: String(source.response_list_path ?? ''),
     headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
+    request_body_fields:
+      request_body_fields.length > 0 ? request_body_fields : [{ key: '', value: '' }],
+    pagination: parsePaginationImport(source.pagination),
     auth,
+  };
+}
+
+function parsePaginationImport(value: unknown): ApiSourcePaginationForm {
+  const defaults = createDefaultPaginationConfig();
+  if (!value || typeof value !== 'object') {
+    return defaults;
+  }
+
+  const pagination = value as Record<string, unknown>;
+  return {
+    is_enabled: true,
+    page_size: String(pagination.page_size ?? DEFAULT_PAGINATION_PAGE_SIZE),
+    date_format: String(pagination.date_format ?? DEFAULT_PAGINATION_DATE_FORMAT),
+    default_from_date: String(pagination.default_from_date ?? ''),
   };
 }
 
@@ -176,7 +234,7 @@ function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
   const parsed_body_type =
     body_type === 'json' || body_type === 'form' || body_type === 'xml' ? body_type : 'none';
 
-  const parsed_auth: HrmsAuthFormConfig = {
+  return {
     ...default_auth,
     auth_type:
       auth.auth_type === 'bearer' || auth.auth_type === 'api_key' ? auth.auth_type : 'basic',
@@ -197,8 +255,6 @@ function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
       typeof auth.body === 'string' && isLikelyEncryptedValue(auth.body),
     body_fields: parseBodyFieldsImport(auth.body),
   };
-
-  return parsed_auth;
 }
 
 function parseBodyFieldsImport(body: unknown): HrmsAuthFormConfig['body_fields'] {

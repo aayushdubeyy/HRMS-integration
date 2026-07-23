@@ -10,6 +10,10 @@ import {
 } from '../utils/generalAdaptorConfig';
 import { MandatoryFieldsSelector } from './MandatoryFieldsSelector';
 import { ConditionalTransformationsEditor } from './ConditionalTransformationsEditor';
+import { CompositeFieldsEditor } from './CompositeFieldsEditor';
+import { MobileSanitizeFieldsSelector } from './MobileSanitizeFieldsSelector';
+import { EmployeeRestrictionEditor } from './EmployeeRestrictionEditor';
+import { SyncBehaviorSettings } from './SyncBehaviorSettings';
 import { AdvancedInfoSettings } from './AdvancedInfoSettings';
 import { CollapsibleSection } from './CollapsibleSection';
 
@@ -121,6 +125,16 @@ export function GeneralAdaptorForm({ config, onChange }: GeneralAdaptorFormProps
         </div>
       </CollapsibleSection>
 
+      <CompositeFieldsEditor
+        composite_fields={config.composite_fields}
+        onChange={(composite_fields) => onChange({ ...config, composite_fields })}
+      />
+
+      <MobileSanitizeFieldsSelector
+        selected_fields={config.mobile_sanitize_fields}
+        onChange={(mobile_sanitize_fields) => onChange({ ...config, mobile_sanitize_fields })}
+      />
+
       <CollapsibleSection
         title="Phone Fields To Transform"
         description="Select amber phone fields that should be normalized during sync."
@@ -144,6 +158,36 @@ export function GeneralAdaptorForm({ config, onChange }: GeneralAdaptorFormProps
           })}
         </div>
       </CollapsibleSection>
+
+      <EmployeeRestrictionEditor
+        employee_restriction_config={config.employee_restriction_config}
+        onChange={(employee_restriction_config) =>
+          onChange({ ...config, employee_restriction_config })
+        }
+      />
+
+      <SyncBehaviorSettings
+        customMandatoryFields={config.customMandatoryFields}
+        exclude_employee_codes={config.exclude_employee_codes}
+        dont_insert_inactive_employees={config.dont_insert_inactive_employees}
+        leaving_date_format={config.leaving_date_format}
+        modify_full_name={config.modify_full_name}
+        onCustomMandatoryFieldsChange={(customMandatoryFields) =>
+          onChange({ ...config, customMandatoryFields })
+        }
+        onExcludeEmployeeCodesChange={(exclude_employee_codes) =>
+          onChange({ ...config, exclude_employee_codes })
+        }
+        onDontInsertInactiveChange={(dont_insert_inactive_employees) =>
+          onChange({ ...config, dont_insert_inactive_employees })
+        }
+        onLeavingDateFormatChange={(leaving_date_format) =>
+          onChange({ ...config, leaving_date_format })
+        }
+        onModifyFullNameChange={(modify_full_name) =>
+          onChange({ ...config, modify_full_name })
+        }
+      />
 
       <ConditionalTransformationsEditor
         transformations={config.conditional_field_transformations}

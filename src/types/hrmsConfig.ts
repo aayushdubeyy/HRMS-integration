@@ -92,6 +92,25 @@ export type ConditionalFieldTransformationExport =
 
 export type FieldPathType = 'date' | 'string';
 
+export type CompositeFieldRow = {
+  row_id: string;
+  target_field: string;
+  source_fields: string[];
+};
+
+export type EmployeeRestrictionOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'starts_with'
+  | 'not_starts_with';
+
+export type EmployeeRestrictionRow = {
+  row_id: string;
+  field_name: string;
+  allowed_values: string[];
+  operator: EmployeeRestrictionOperator;
+};
+
 export type GeneralAdaptorInfoConfig = HrmsAdvancedSettings & {
   date_format: string;
   conditional_field_transformations: ConditionalFieldTransformationForm[];
@@ -102,6 +121,14 @@ export type GeneralAdaptorInfoConfig = HrmsAdvancedSettings & {
   mapping: Record<string, string>;
   phone_fields_to_transform: string[];
   field_type_overrides: Record<string, FieldPathType>;
+  composite_fields: CompositeFieldRow[];
+  mobile_sanitize_fields: string[];
+  employee_restriction_config: EmployeeRestrictionRow[];
+  customMandatoryFields: string[];
+  exclude_employee_codes: string[];
+  dont_insert_inactive_employees: boolean;
+  leaving_date_format: string;
+  modify_full_name: boolean;
 };
 
 export type HrmsAdvancedSettingsExport = Partial<{
@@ -121,6 +148,18 @@ export type GeneralAdaptorInfoExport = {
   path_mapping: Record<string, string>;
   mapping: Record<string, string>;
   phone_fields_to_transform?: string[];
+  composite_fields?: Record<string, string[]>;
+  mobile_sanitize_fields?: string[];
+  employee_restriction_config?: Array<{
+    field_name: string;
+    allowed_values: string[];
+    operator: EmployeeRestrictionOperator;
+  }>;
+  customMandatoryFields?: string[];
+  exclude_employee_codes?: string[];
+  dont_insert_inactive_employees?: boolean;
+  leaving_date_format?: string;
+  modify_full_name?: boolean;
 } & HrmsAdvancedSettingsExport;
 
 export type HrmsAuthBodyField = {
@@ -148,6 +187,19 @@ export type HrmsAuthFormConfig = {
   body_xml_is_already_encrypted: boolean;
 };
 
+export type ApiSourcePaginationForm = {
+  is_enabled: boolean;
+  page_size: string;
+  date_format: string;
+  default_from_date: string;
+};
+
+export type ApiSourcePaginationExport = {
+  page_size: number;
+  date_format: string;
+  default_from_date?: string;
+};
+
 export type ApiSourceFormConfig = {
   source_id: string;
   name: string;
@@ -155,6 +207,8 @@ export type ApiSourceFormConfig = {
   method: 'get' | 'post';
   response_list_path: string;
   headers: Array<{ key: string; value: string }>;
+  request_body_fields: Array<{ key: string; value: string }>;
+  pagination: ApiSourcePaginationForm;
   auth: HrmsAuthFormConfig;
 };
 
@@ -169,6 +223,8 @@ export type GeneralAdaptorConfigExport = {
     method: string;
     response_list_path?: string;
     headers?: Record<string, string>;
+    request_body?: Record<string, string>;
+    pagination?: ApiSourcePaginationExport;
     auth: Record<string, unknown>;
   }>;
 };

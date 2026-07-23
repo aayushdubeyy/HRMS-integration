@@ -198,6 +198,23 @@
   margin-top: 4px;
 }
 
+.placeholder-hints {
+  margin-bottom: 10px;
+}
+
+.chip-muted {
+  opacity: 0.7;
+  cursor: default;
+  pointer-events: none;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
 .secret-status.plain {
   color: #b45309;
 }

@@ -22,6 +22,13 @@ import {
 } from './utils/hrmsIntegrationSql';
 import { parseAdvancedSettingsFromImport } from './utils/advancedSettings';
 import { parseConditionalTransformationsFromImport } from './utils/conditionalFieldTransformations';
+import {
+  parseCompositeFieldsImport,
+  parseEmployeeRestrictionImport,
+  parseExcludeEmployeeCodes,
+  parseMobileSanitizeFieldsImport,
+  parseStringArray,
+} from './utils/infoFieldExtensions';
 import { DEFAULT_DATE_FORMAT } from './constants/dateFormats';
 import type { GeneralAdaptorConfig, GeneralAdaptorInfoConfig } from './types/hrmsConfig';
 import './App.css';
@@ -134,6 +141,22 @@ function App() {
           (parsed_json.path_mapping as Record<string, string>) ?? {},
           (parsed_json.date_fields_path_mapping as Record<string, string>) ?? {},
         ),
+        composite_fields: parseCompositeFieldsImport(
+          parsed_json.composite_fields,
+          (parsed_json.mapping as Record<string, string>) ?? {},
+        ),
+        mobile_sanitize_fields: parseMobileSanitizeFieldsImport(
+          parsed_json.mobile_sanitize_fields,
+          (parsed_json.mapping as Record<string, string>) ?? {},
+        ),
+        employee_restriction_config: parseEmployeeRestrictionImport(
+          parsed_json.employee_restriction_config,
+        ),
+        customMandatoryFields: parseStringArray(parsed_json.customMandatoryFields),
+        exclude_employee_codes: parseExcludeEmployeeCodes(parsed_json.exclude_employee_codes),
+        dont_insert_inactive_employees: parsed_json.dont_insert_inactive_employees === true,
+        leaving_date_format: String(parsed_json.leaving_date_format ?? ''),
+        modify_full_name: parsed_json.modify_full_name !== false,
       });
     } catch {
       window.alert('Invalid JSON. Please check the pasted content and try again.');

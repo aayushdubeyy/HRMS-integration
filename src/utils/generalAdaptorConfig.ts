@@ -3,6 +3,11 @@ import { DEFAULT_DATE_FORMAT } from '../constants/dateFormats';
 import type { GeneralAdaptorInfoConfig, GeneralAdaptorInfoExport, FieldPathType } from '../types/hrmsConfig';
 import { appendAdvancedSettingsExport, createDefaultAdvancedSettings } from './advancedSettings';
 import { buildConditionalTransformationsExport } from './conditionalFieldTransformations';
+import {
+  buildCompositeFieldsExport,
+  buildEmployeeRestrictionExport,
+  buildMobileSanitizeFieldsExport,
+} from './infoFieldExtensions';
 
 export function createDefaultGeneralAdaptorConfig(): GeneralAdaptorInfoConfig {
   return {
@@ -16,6 +21,14 @@ export function createDefaultGeneralAdaptorConfig(): GeneralAdaptorInfoConfig {
     mapping: {},
     phone_fields_to_transform: [],
     field_type_overrides: {},
+    composite_fields: [],
+    mobile_sanitize_fields: [],
+    employee_restriction_config: [],
+    customMandatoryFields: [],
+    exclude_employee_codes: [],
+    dont_insert_inactive_employees: false,
+    leaving_date_format: '',
+    modify_full_name: true,
   };
 }
 
@@ -260,6 +273,17 @@ export function buildGeneralAdaptorExport(
   );
 
   const phone_fields_to_transform = synced_config.phone_fields_to_transform;
+  const composite_fields = buildCompositeFieldsExport(
+    synced_config.composite_fields,
+    active_mapping,
+  );
+  const mobile_sanitize_fields = buildMobileSanitizeFieldsExport(
+    synced_config.mobile_sanitize_fields,
+    active_mapping,
+  );
+  const employee_restriction_config = buildEmployeeRestrictionExport(
+    synced_config.employee_restriction_config,
+  );
 
   return appendAdvancedSettingsExport(
     {
@@ -275,6 +299,22 @@ export function buildGeneralAdaptorExport(
       path_mapping,
       mapping: active_mapping,
       ...(phone_fields_to_transform.length > 0 ? { phone_fields_to_transform } : {}),
+      ...(composite_fields ? { composite_fields } : {}),
+      ...(mobile_sanitize_fields ? { mobile_sanitize_fields } : {}),
+      ...(employee_restriction_config ? { employee_restriction_config } : {}),
+      ...(synced_config.customMandatoryFields.length > 0
+        ? { customMandatoryFields: synced_config.customMandatoryFields }
+        : {}),
+      ...(synced_config.exclude_employee_codes.length > 0
+        ? { exclude_employee_codes: synced_config.exclude_employee_codes }
+        : {}),
+      ...(synced_config.dont_insert_inactive_employees
+        ? { dont_insert_inactive_employees: true }
+        : {}),
+      ...(synced_config.leaving_date_format.trim()
+        ? { leaving_date_format: synced_config.leaving_date_format.trim() }
+        : {}),
+      ...(synced_config.modify_full_name === false ? { modify_full_name: false } : {}),
     },
     synced_config,
   );

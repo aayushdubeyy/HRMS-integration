@@ -20,3 +20,15 @@ export const BODY_TYPE_LABELS: Record<BodyType, string> = {
 };
 
 export const DEFAULT_API_KEY_HEADER = 'x-api-key';
+
+export const DEFAULT_PAGINATION_PAGE_SIZE = '100';
+export const DEFAULT_PAGINATION_DATE_FORMAT = 'YYYY-MM-DD';
+
+export const REQUEST_TEMPLATE_PLACEHOLDERS = [
+  '{{page_number}}',
+  '{{page_size}}',
+  '{{from_date}}',
+  '{{to_date}}',
+  '{{from_updated_date}}',
+  '{{to_updated_date}}',
+] as const;
