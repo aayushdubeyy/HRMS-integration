@@ -160,6 +160,80 @@ export function updateAmberMappingValue(
   });
 }
 
+export function getAmberApiPath(
+  config: GeneralAdaptorInfoConfig,
+  amber_key: string,
+): string {
+  const pascal_key = config.mapping[amber_key];
+  if (!pascal_key) {
+    return '';
+  }
+
+  const field_type = getAmberFieldType(amber_key, config.field_type_overrides);
+  if (field_type === 'date') {
+    return config.date_fields_path_mapping[pascal_key] ?? '';
+  }
+
+  return config.path_mapping[pascal_key] ?? '';
+}
+
+export function updateAmberApiPath(
+  config: GeneralAdaptorInfoConfig,
+  amber_key: string,
+  api_path: string,
+): GeneralAdaptorInfoConfig {
+  if (!api_path) {
+    return updateAmberMappingValue(config, amber_key, '');
+  }
+
+  const pascal_key = resolveAmberPascalKey(config, amber_key);
+  const with_mapping = updateAmberMappingValue(config, amber_key, pascal_key);
+  return writeAmberApiPathValue(with_mapping, amber_key, pascal_key, api_path);
+}
+
+function resolveAmberPascalKey(
+  config: GeneralAdaptorInfoConfig,
+  amber_key: string,
+): string {
+  if (config.mapping[amber_key]) {
+    return config.mapping[amber_key];
+  }
+
+  const amber_definition = AMBER_KEYS.find((definition) => definition.key === amber_key);
+  if (!amber_definition) {
+    throw new Error(`Failed to resolve path key for unknown amber_key=${amber_key}`);
+  }
+
+  return amber_definition.pascal_case;
+}
+
+function writeAmberApiPathValue(
+  config: GeneralAdaptorInfoConfig,
+  amber_key: string,
+  pascal_key: string,
+  api_path: string,
+): GeneralAdaptorInfoConfig {
+  const field_type = getAmberFieldType(amber_key, config.field_type_overrides);
+
+  if (field_type === 'date') {
+    return {
+      ...config,
+      date_fields_path_mapping: {
+        ...config.date_fields_path_mapping,
+        [pascal_key]: api_path,
+      },
+    };
+  }
+
+  return {
+    ...config,
+    path_mapping: {
+      ...config.path_mapping,
+      [pascal_key]: api_path,
+    },
+  };
+}
+
 export function buildGeneralAdaptorExport(
   config: GeneralAdaptorInfoConfig,
 ): GeneralAdaptorInfoExport {

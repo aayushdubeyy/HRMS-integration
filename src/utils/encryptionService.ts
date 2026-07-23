@@ -1,4 +1,13 @@
-const ENCRYPTION_STORAGE_KEY = 'hrms_encryption_settings';
+export const ADMIN_API_BASE_URL = 'https://admin-api-ap.infeedo.com';
+export const ENCRYPT_DECRYPT_PROXY_PATH = '/api/encrypt-decrypt';
+
+export type EncryptDecryptMode = 'encrypt' | 'decrypt';
+
+export type EncryptDecryptRequest = {
+  content: string;
+  access_token: string;
+  mode: EncryptDecryptMode;
+};
 
 export function isLikelyEncryptedValue(value: string): boolean {
   const trimmed_value = value.trim();
@@ -6,77 +15,60 @@ export function isLikelyEncryptedValue(value: string): boolean {
   return /^[0-9a-f]+$/i.test(trimmed_value);
 }
 
-function parseEncryptionResponse(response_text: string): string {
-  const match = response_text.match(/Encrypted content\s*:\s*(.+)$/i);
+export function buildEncryptDecryptEndpoint(mode: EncryptDecryptMode): string {
+  const encrypt_query = mode === 'encrypt' ? 'true' : 'false';
+  return `${ADMIN_API_BASE_URL}/v1/acl/encrypt_decrypt_value?encrypt=${encrypt_query}`;
+}
+
+export function buildEncryptDecryptHeaders(access_token: string): Record<string, string> {
+  const trimmed_token = access_token.trim();
+  if (!trimmed_token) {
+    throw new Error('Failed to build encrypt/decrypt headers: access_token is required');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${trimmed_token}`,
+  };
+}
+
+export function parseEncryptDecryptResponse(
+  response_text: string,
+  mode: EncryptDecryptMode,
+): string {
+  const response_label = mode === 'encrypt' ? 'Encrypted content' : 'Decrypted content';
+  const match = response_text.match(new RegExp(`${response_label}\\s*:\\s*(.+)$`, 'i'));
   if (!match?.[1]) {
-    throw new Error(`Unexpected encryption API response: ${response_text}`);
+    throw new Error(`Failed to parse ${mode} response: ${response_text}`);
   }
 
   return match[1].trim();
 }
 
-export async function encryptSecretValue(
-  plaintext: string,
-  api_base_url: string,
+export async function encryptDecryptValue(
+  request: EncryptDecryptRequest,
 ): Promise<string> {
-  const trimmed_value = plaintext.trim();
-  if (!trimmed_value) return trimmed_value;
-  if (isLikelyEncryptedValue(trimmed_value)) return trimmed_value;
-
-  const base_url = api_base_url.replace(/\/$/, '');
-  const endpoint = `${base_url}/v1/acl/encrypt_decrypt_value?encrypt=true`;
-  const request_body = JSON.stringify({ content: trimmed_value });
-
-  const post_response = await fetch(endpoint, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: request_body,
-  });
-
-  if (post_response.ok) {
-    return parseEncryptionResponse(await post_response.text());
+  const trimmed_content = request.content.trim();
+  if (!trimmed_content) {
+    throw new Error(`Failed to ${request.mode} value: content is required`);
   }
 
-  const get_response = await fetch(endpoint, {
-    method: 'GET',
-    credentials: 'include',
+  const response = await fetch(ENCRYPT_DECRYPT_PROXY_PATH, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: request_body,
+    body: JSON.stringify({
+      content: trimmed_content,
+      access_token: request.access_token,
+      mode: request.mode,
+    }),
   });
 
-  if (!get_response.ok) {
+  const response_text = await response.text();
+  if (!response.ok) {
     throw new Error(
-      `Encryption API failed with status=${get_response.status} for endpoint=${endpoint}`,
+      `Failed to ${request.mode} value via proxy path=${ENCRYPT_DECRYPT_PROXY_PATH}: ${response_text}`,
     );
   }
 
-  return parseEncryptionResponse(await get_response.text());
-}
-
-export function loadEncryptionSettings(): {
-  api_base_url: string;
-  encrypt_secrets_on_copy: boolean;
-} {
-  const raw_settings = localStorage.getItem(ENCRYPTION_STORAGE_KEY);
-  if (!raw_settings) {
-    return { api_base_url: '', encrypt_secrets_on_copy: true };
-  }
-
-  try {
-    const parsed_settings = JSON.parse(raw_settings);
-    return {
-      api_base_url: String(parsed_settings.api_base_url ?? ''),
-      encrypt_secrets_on_copy: parsed_settings.encrypt_secrets_on_copy !== false,
-    };
-  } catch {
-    return { api_base_url: '', encrypt_secrets_on_copy: true };
-  }
-}
-
-export function saveEncryptionSettings(settings: {
-  api_base_url: string;
-  encrypt_secrets_on_copy: boolean;
-}): void {
-  localStorage.setItem(ENCRYPTION_STORAGE_KEY, JSON.stringify(settings));
+  return response_text.trim();
 }

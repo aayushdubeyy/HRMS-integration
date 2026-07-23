@@ -4,7 +4,6 @@ type JsonPreviewProps = {
   title: string;
   description: string;
   value: object;
-  onPrepareCopy?: (value: object) => Promise<object>;
   copy_button_label?: string;
 };
 
@@ -12,14 +11,12 @@ export function JsonPreview({
   title,
   description,
   value,
-  onPrepareCopy,
   copy_button_label = 'Copy JSON',
 }: JsonPreviewProps) {
   const json_text = JSON.stringify(value, null, 2);
 
   async function copyJson() {
-    const export_value = onPrepareCopy ? await onPrepareCopy(value) : value;
-    await navigator.clipboard.writeText(JSON.stringify(export_value, null, 2));
+    await navigator.clipboard.writeText(json_text);
   }
 
   return (

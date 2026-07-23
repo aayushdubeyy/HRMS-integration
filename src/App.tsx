@@ -10,7 +10,6 @@ import {
   deriveFieldTypeOverridesFromImport,
 } from './utils/generalAdaptorConfig';
 import {
-  buildEncryptedGeneralAdaptorConfigExport,
   buildGeneralAdaptorConfigExport,
   createDefaultGeneralAdaptorConfigForm,
   parseGeneralAdaptorConfigImport,
@@ -23,7 +22,6 @@ import {
 } from './utils/hrmsIntegrationSql';
 import { parseAdvancedSettingsFromImport } from './utils/advancedSettings';
 import { parseConditionalTransformationsFromImport } from './utils/conditionalFieldTransformations';
-import { loadEncryptionSettings } from './utils/encryptionService';
 import { DEFAULT_DATE_FORMAT } from './constants/dateFormats';
 import type { GeneralAdaptorConfig, GeneralAdaptorInfoConfig } from './types/hrmsConfig';
 import './App.css';
@@ -39,7 +37,6 @@ function App() {
     createDefaultGeneralAdaptorConfigForm(),
   );
   const [sql_form, setSqlForm] = useState(createDefaultHrmsIntegrationSqlForm);
-  const [encryption_settings, setEncryptionSettings] = useState(loadEncryptionSettings);
 
   const exported_info_json = useMemo(
     () => buildGeneralAdaptorExport(general_info_config),
@@ -78,11 +75,8 @@ function App() {
     if (active_tab === 'general_config') {
       return {
         title: 'GeneralAdaptor Config JSON',
-        description:
-          'Copy this JSON into the HRMS integration config column. Use encrypted copy for production secrets.',
-        copy_button_label: encryption_settings.encrypt_secrets_on_copy
-          ? 'Copy Encrypted JSON'
-          : 'Copy JSON',
+        description: 'Copy this JSON into the HRMS integration config column.',
+        copy_button_label: 'Copy JSON',
       };
     }
 
@@ -91,23 +85,7 @@ function App() {
       description: 'Copy and run this INSERT against hrms_integrations.',
       copy_button_label: 'Copy SQL',
     };
-  }, [active_tab, encryption_settings.encrypt_secrets_on_copy]);
-
-  async function prepareConfigCopy(value: object) {
-    if (active_tab !== 'general_config') return value;
-
-    if (
-      !encryption_settings.encrypt_secrets_on_copy ||
-      !encryption_settings.api_base_url.trim()
-    ) {
-      return value;
-    }
-
-    return buildEncryptedGeneralAdaptorConfigExport(
-      general_adaptor_config,
-      encryption_settings.api_base_url,
-    );
-  }
+  }, [active_tab]);
 
   function loadInfoJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
@@ -116,28 +94,10 @@ function App() {
     }));
   }
 
-  async function loadConfigJsonIntoSqlForm() {
-    let config_export: object = exported_config_json;
-
-    if (
-      encryption_settings.encrypt_secrets_on_copy &&
-      encryption_settings.api_base_url.trim()
-    ) {
-      try {
-        config_export = await buildEncryptedGeneralAdaptorConfigExport(
-          general_adaptor_config,
-          encryption_settings.api_base_url,
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to encrypt config JSON';
-        window.alert(message);
-        return;
-      }
-    }
-
+  function loadConfigJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
       ...current_form,
-      config_json: JSON.stringify(config_export, null, 2),
+      config_json: JSON.stringify(exported_config_json, null, 2),
     }));
   }
 
@@ -232,10 +192,7 @@ function App() {
           {active_tab === 'general_config' && (
             <GeneralAdaptorConfigForm
               config={general_adaptor_config}
-              api_base_url={encryption_settings.api_base_url}
-              encrypt_secrets_on_copy={encryption_settings.encrypt_secrets_on_copy}
               onChange={setGeneralAdaptorConfig}
-              onEncryptionSettingsChange={setEncryptionSettings}
             />
           )}
           {active_tab === 'sql_insert' && (
@@ -266,7 +223,6 @@ function App() {
               description={preview_meta.description}
               value={exported_json}
               copy_button_label={preview_meta.copy_button_label}
-              onPrepareCopy={active_tab === 'general_config' ? prepareConfigCopy : undefined}
             />
           )}
         </div>

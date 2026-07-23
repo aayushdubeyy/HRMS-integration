@@ -30,7 +30,7 @@ export function SecretFieldInput({
         }}
       />
       <span className={`secret-status ${looks_encrypted ? 'encrypted' : 'plain'}`}>
-        {looks_encrypted ? 'Encrypted value detected' : 'Plaintext (encrypt on copy if enabled)'}
+        {looks_encrypted ? 'Encrypted value detected' : 'Plaintext (encrypt via Encrypt / Decrypt Value)'}
       </span>
     </label>
   );

@@ -173,11 +173,6 @@ export type GeneralAdaptorConfigExport = {
   }>;
 };
 
-export type EncryptionSettings = {
-  api_base_url: string;
-  encrypt_secrets_on_copy: boolean;
-};
-
 export function isAllowedEmployeesGroup(
   rule: AllowedEmployeeRule | AllowedEmployeesConfig,
 ): rule is AllowedEmployeesConfig {

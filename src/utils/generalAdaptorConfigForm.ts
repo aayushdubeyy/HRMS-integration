@@ -5,10 +5,7 @@ import type {
   HrmsAuthFormConfig,
 } from '../types/hrmsConfig';
 import { DEFAULT_API_KEY_HEADER } from '../constants/hrmsAuth';
-import {
-  encryptSecretValue,
-  isLikelyEncryptedValue,
-} from './encryptionService';
+import { isLikelyEncryptedValue } from './encryptionService';
 
 export function createDefaultAuthConfig(): HrmsAuthFormConfig {
   return {
@@ -137,88 +134,6 @@ export function buildGeneralAdaptorConfigExport(
     .filter((source) => source.data_url && source.auth);
 
   return { api_sources };
-}
-
-async function encryptAuthSecret(
-  value: string,
-  is_already_encrypted: boolean,
-  api_base_url: string,
-): Promise<string> {
-  if (!value.trim() || is_already_encrypted || isLikelyEncryptedValue(value)) {
-    return value;
-  }
-
-  return encryptSecretValue(value, api_base_url);
-}
-
-async function encryptAuthConfig(
-  auth: HrmsAuthFormConfig,
-  api_base_url: string,
-): Promise<HrmsAuthFormConfig> {
-  const next_auth = { ...auth };
-
-  if (auth.auth_type === 'basic') {
-    next_auth.password = await encryptAuthSecret(
-      auth.password,
-      auth.password_is_already_encrypted,
-      api_base_url,
-    );
-  }
-
-  if (auth.auth_type === 'bearer') {
-    next_auth.bearer_token = await encryptAuthSecret(
-      auth.bearer_token,
-      auth.bearer_token_is_already_encrypted,
-      api_base_url,
-    );
-    next_auth.token = await encryptAuthSecret(
-      auth.token,
-      auth.token_is_already_encrypted,
-      api_base_url,
-    );
-  }
-
-  if (auth.auth_type === 'api_key') {
-    next_auth.api_key = await encryptAuthSecret(
-      auth.api_key,
-      auth.api_key_is_already_encrypted,
-      api_base_url,
-    );
-  }
-
-  if (auth.body_type === 'xml') {
-    next_auth.body_xml = await encryptAuthSecret(
-      auth.body_xml,
-      auth.body_xml_is_already_encrypted,
-      api_base_url,
-    );
-    return next_auth;
-  }
-
-  if (auth.body_type === 'json' || auth.body_type === 'form') {
-    next_auth.body_fields = await Promise.all(
-      auth.body_fields.map(async (field) => ({
-        ...field,
-        value: await encryptAuthSecret(field.value, field.is_already_encrypted, api_base_url),
-      })),
-    );
-  }
-
-  return next_auth;
-}
-
-export async function buildEncryptedGeneralAdaptorConfigExport(
-  config: GeneralAdaptorConfig,
-  api_base_url: string,
-): Promise<GeneralAdaptorConfigExport> {
-  const encrypted_sources = await Promise.all(
-    config.api_sources.map(async (source) => ({
-      ...source,
-      auth: await encryptAuthConfig(source.auth, api_base_url),
-    })),
-  );
-
-  return buildGeneralAdaptorConfigExport({ api_sources: encrypted_sources });
 }
 
 export function parseGeneralAdaptorConfigImport(
