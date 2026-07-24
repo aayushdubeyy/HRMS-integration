@@ -1,5 +1,6 @@
 import type {
   ConditionalFieldTransformationForm,
+  EmployeeRestrictionOperator,
   EmployeeRestrictionRow,
   HrmsAdvancedSettings,
   HrmsAdvancedSettingsExport,
@@ -25,7 +26,11 @@ export type SftpInfoExport = {
   mandatoryFields: string[];
   phone_fields_to_transform?: string[];
   conditional_field_transformations?: unknown[];
-  employee_restriction_config?: EmployeeRestrictionRow[];
+  employee_restriction_config?: Array<{
+    field_name: string;
+    allowed_values: string[];
+    operator: EmployeeRestrictionOperator;
+  }>;
   customMandatoryFields?: string[];
   exclude_employee_codes?: string[];
   dont_insert_inactive_employees?: boolean;

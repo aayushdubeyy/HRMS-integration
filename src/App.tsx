@@ -119,10 +119,12 @@ function App() {
     );
   }
 
+  const selected_adaptor_type = adaptor_type;
+
   function loadInfoJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
       ...current_form,
-      hrms_type: adaptor_type,
+      hrms_type: selected_adaptor_type,
       info_json: JSON.stringify(exported_info_json, null, 2),
     }));
   }
@@ -130,7 +132,7 @@ function App() {
   function loadConfigJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
       ...current_form,
-      hrms_type: adaptor_type,
+      hrms_type: selected_adaptor_type,
       config_json: JSON.stringify(exported_config_json, null, 2),
     }));
   }
