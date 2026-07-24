@@ -128,125 +128,133 @@ export function ApiSourceEditor({
         </label>
       </div>
 
-      <div className="panel-section">
-        <h3>Pagination</h3>
-        <p className="field-hint">
-          If API Source 1 has pagination enabled, GeneralAdaptor uses paginated mode and only
-          fetches the first source.
-        </p>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={source.pagination.is_enabled}
-            onChange={(event) => updatePagination('is_enabled', event.target.checked)}
+      <div className="optional-config-stack">
+        <CollapsibleSection
+          title="Pagination"
+          description="Optional. If API Source 1 has pagination enabled, only the first source is fetched."
+          default_open={false}
+          className="optional-config-section"
+        >
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={source.pagination.is_enabled}
+              onChange={(event) => updatePagination('is_enabled', event.target.checked)}
+            />
+            Enable pagination
+          </label>
+          {source.pagination.is_enabled && (
+            <div className="settings-grid">
+              <label>
+                Page Size
+                <input
+                  type="number"
+                  min="1"
+                  value={source.pagination.page_size}
+                  onChange={(event) => updatePagination('page_size', event.target.value)}
+                />
+              </label>
+              <label>
+                Pagination Date Format
+                <input
+                  type="text"
+                  value={source.pagination.date_format}
+                  placeholder="YYYY-MM-DD"
+                  onChange={(event) => updatePagination('date_format', event.target.value)}
+                />
+              </label>
+              <label className="full-width-field">
+                Default From Date (optional)
+                <input
+                  type="text"
+                  value={source.pagination.default_from_date}
+                  placeholder="2024-01-01"
+                  onChange={(event) => updatePagination('default_from_date', event.target.value)}
+                />
+              </label>
+            </div>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Query Params"
+          description="Optional. Appended to data_url after RequestTemplate resolution."
+          default_open={false}
+          className="optional-config-section"
+        >
+          <RequestTemplatePlaceholders />
+          <KeyValueEditor
+            rows={source.query_params_fields}
+            key_label="Param"
+            value_label="Value"
+            value_placeholder="{{page_number}}"
+            onChange={(query_params_fields) => onChange({ ...source, query_params_fields })}
           />
-          Enable pagination
-        </label>
-        {source.pagination.is_enabled && (
-          <div className="settings-grid">
-            <label>
-              Page Size
-              <input
-                type="number"
-                min="1"
-                value={source.pagination.page_size}
-                onChange={(event) => updatePagination('page_size', event.target.value)}
-              />
-            </label>
-            <label>
-              Pagination Date Format
-              <input
-                type="text"
-                value={source.pagination.date_format}
-                placeholder="YYYY-MM-DD"
-                onChange={(event) => updatePagination('date_format', event.target.value)}
-              />
-            </label>
-            <label className="full-width-field">
-              Default From Date (optional)
-              <input
-                type="text"
-                value={source.pagination.default_from_date}
-                placeholder="2024-01-01"
-                onChange={(event) => updatePagination('default_from_date', event.target.value)}
-              />
-            </label>
-          </div>
-        )}
-      </div>
+        </CollapsibleSection>
 
-      <div className="panel-section">
-        <h3>Query Params</h3>
-        <p className="field-hint">
-          Appended to data_url after RequestTemplate resolution (supports pagination placeholders).
-        </p>
-        <RequestTemplatePlaceholders />
-        <KeyValueEditor
-          rows={source.query_params_fields}
-          key_label="Param"
-          value_label="Value"
-          value_placeholder="{{page_number}}"
-          onChange={(query_params_fields) => onChange({ ...source, query_params_fields })}
-        />
-      </div>
-
-      <div className="panel-section">
-        <h3>Extra Headers</h3>
-        <RequestTemplatePlaceholders />
-        <KeyValueEditor
-          rows={source.headers}
-          key_label="Header"
-          value_label="Value"
-          value_placeholder="{{page_number}} or static value"
-          onChange={(headers) => onChange({ ...source, headers })}
-        />
-      </div>
-
-      <div className="panel-section">
-        <h3>Request Body Override</h3>
-        <p className="field-hint">
-          When set, this replaces the auth-derived body and supports RequestTemplate placeholders.
-        </p>
-        <RequestTemplatePlaceholders description="Click a placeholder chip to copy it into a request_body value." />
-        <KeyValueEditor
-          rows={source.request_body_fields}
-          key_label="Body Key"
-          value_label="Body Value"
-          value_placeholder="{{from_date}}"
-          onChange={(request_body_fields) => onChange({ ...source, request_body_fields })}
-        />
-      </div>
-
-      <div className="panel-section">
-        <h3>Fetch Token From API</h3>
-        <p className="field-hint">
-          When enabled, GeneralAdaptor calls auth.token_api first and uses the token as runtime
-          Bearer for this source. Set main auth type to Bearer.
-        </p>
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={source.fetch_token_from_api}
-            onChange={(event) =>
-              onChange({ ...source, fetch_token_from_api: event.target.checked })
-            }
+        <CollapsibleSection
+          title="Extra Headers"
+          description="Optional. Extra HTTP headers for this data request."
+          default_open={false}
+          className="optional-config-section"
+        >
+          <RequestTemplatePlaceholders />
+          <KeyValueEditor
+            rows={source.headers}
+            key_label="Header"
+            value_label="Value"
+            value_placeholder="{{page_number}} or static value"
+            onChange={(headers) => onChange({ ...source, headers })}
           />
-          Enable token API fetch
-        </label>
-        {source.fetch_token_from_api && (
-          <TokenApiEditor
-            token_api={source.auth.token_api}
-            onChange={(token_api) =>
-              onChange({
-                ...source,
-                auth: {
-                  ...source.auth,
-                  token_api,
-                },
-              })
-            }
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Request Body Override"
+          description="Optional. Replaces the auth-derived body and supports RequestTemplate placeholders."
+          default_open={false}
+          className="optional-config-section"
+        >
+          <RequestTemplatePlaceholders description="Click a placeholder chip to copy it into a request_body value." />
+          <KeyValueEditor
+            rows={source.request_body_fields}
+            key_label="Body Key"
+            value_label="Body Value"
+            value_placeholder="{{from_date}}"
+            onChange={(request_body_fields) => onChange({ ...source, request_body_fields })}
           />
-        )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Fetch Token From API"
+          description="Optional. Calls auth.token_api first and uses the token as runtime Bearer. Set main auth to Bearer."
+          default_open={false}
+          className="optional-config-section"
+        >
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={source.fetch_token_from_api}
+              onChange={(event) =>
+                onChange({ ...source, fetch_token_from_api: event.target.checked })
+              }
+            />
+            Enable token API fetch
+          </label>
+          {source.fetch_token_from_api && (
+            <TokenApiEditor
+              token_api={source.auth.token_api}
+              onChange={(token_api) =>
+                onChange({
+                  ...source,
+                  auth: {
+                    ...source.auth,
+                    token_api,
+                  },
+                })
+              }
+            />
+          )}
+        </CollapsibleSection>
       </div>
 
       <HrmsAuthEditor auth={source.auth} onChange={updateAuthCredentials} />
