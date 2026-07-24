@@ -215,10 +215,22 @@ function App() {
 
   const header_copy = getAdaptorHeaderCopy(adaptor_type);
 
+  function returnToAdaptorChooser() {
+    setAdaptorType(null);
+    setActiveTab('info');
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
         <div>
+          <button
+            type="button"
+            className="back-to-chooser-link"
+            onClick={returnToAdaptorChooser}
+          >
+            ← All Adaptors
+          </button>
           <p className="eyebrow">Infeedo HRMS</p>
           <h1>{header_copy.title}</h1>
           <p className="subtitle">{header_copy.subtitle}</p>
@@ -228,12 +240,9 @@ function App() {
           <button
             type="button"
             className="button-secondary"
-            onClick={() => {
-              setAdaptorType(null);
-              setActiveTab('info');
-            }}
+            onClick={returnToAdaptorChooser}
           >
-            Back
+            Change Adaptor
           </button>
           {active_tab !== 'sql_insert' && (
             <button type="button" className="button-secondary" onClick={importJson}>
@@ -244,6 +253,13 @@ function App() {
       </header>
 
       <div className="tab-bar">
+        <button
+          type="button"
+          className="tab-button tab-back-button"
+          onClick={returnToAdaptorChooser}
+        >
+          ← Adaptors
+        </button>
         <button
           type="button"
           className={`tab-button ${active_tab === 'info' ? 'tab-active' : ''}`}
