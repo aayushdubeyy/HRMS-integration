@@ -186,11 +186,22 @@
 }
 
 .checkbox-field {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   flex-direction: row;
-  margin-top: 28px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 12px;
+  align-self: flex-start;
+  cursor: pointer;
+}
+
+.checkbox-field input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .secret-status {
