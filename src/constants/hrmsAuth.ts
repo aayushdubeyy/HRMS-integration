@@ -24,6 +24,15 @@ export const DEFAULT_API_KEY_HEADER = 'x-api-key';
 export const DEFAULT_PAGINATION_PAGE_SIZE = '100';
 export const DEFAULT_PAGINATION_DATE_FORMAT = 'YYYY-MM-DD';
 
+export const BODY_ENCODING_OPTIONS = ['json', 'form-urlencoded'] as const;
+export type BodyEncoding = (typeof BODY_ENCODING_OPTIONS)[number];
+export const DEFAULT_BODY_ENCODING: BodyEncoding = 'json';
+
+export const BODY_ENCODING_LABELS: Record<BodyEncoding, string> = {
+  json: 'JSON',
+  'form-urlencoded': 'Form URL Encoded',
+};
+
 export const REQUEST_TEMPLATE_PLACEHOLDERS = [
   '{{page_number}}',
   '{{page_size}}',

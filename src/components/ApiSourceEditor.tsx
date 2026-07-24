@@ -1,7 +1,12 @@
-import type { ApiSourceFormConfig } from '../types/hrmsConfig';
-import { HTTP_METHODS } from '../constants/hrmsAuth';
+import type { ApiSourceFormConfig, HrmsAuthFormConfig } from '../types/hrmsConfig';
+import {
+  BODY_ENCODING_LABELS,
+  BODY_ENCODING_OPTIONS,
+  HTTP_METHODS,
+} from '../constants/hrmsAuth';
 import { KeyValueEditor } from './KeyValueEditor';
 import { HrmsAuthEditor } from './HrmsAuthEditor';
+import { TokenApiEditor } from './TokenApiEditor';
 import { CollapsibleSection } from './CollapsibleSection';
 import { RequestTemplatePlaceholders } from './RequestTemplatePlaceholders';
 
@@ -18,12 +23,25 @@ export function ApiSourceEditor({
   onChange,
   onRemove,
 }: ApiSourceEditorProps) {
-  function updatePagination(field: keyof ApiSourceFormConfig['pagination'], value: string | boolean) {
+  function updatePagination(
+    field: keyof ApiSourceFormConfig['pagination'],
+    value: string | boolean,
+  ) {
     onChange({
       ...source,
       pagination: {
         ...source.pagination,
         [field]: value,
+      },
+    });
+  }
+
+  function updateAuthCredentials(next_auth: Omit<HrmsAuthFormConfig, 'token_api'>) {
+    onChange({
+      ...source,
+      auth: {
+        ...next_auth,
+        token_api: source.auth.token_api,
       },
     });
   }
@@ -89,6 +107,25 @@ export function ApiSourceEditor({
             }
           />
         </label>
+
+        <label>
+          Body Encoding
+          <select
+            value={source.body_encoding}
+            onChange={(event) =>
+              onChange({
+                ...source,
+                body_encoding: event.target.value as ApiSourceFormConfig['body_encoding'],
+              })
+            }
+          >
+            {BODY_ENCODING_OPTIONS.map((encoding) => (
+              <option key={encoding} value={encoding}>
+                {BODY_ENCODING_LABELS[encoding]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="panel-section">
@@ -139,6 +176,21 @@ export function ApiSourceEditor({
       </div>
 
       <div className="panel-section">
+        <h3>Query Params</h3>
+        <p className="field-hint">
+          Appended to data_url after RequestTemplate resolution (supports pagination placeholders).
+        </p>
+        <RequestTemplatePlaceholders />
+        <KeyValueEditor
+          rows={source.query_params_fields}
+          key_label="Param"
+          value_label="Value"
+          value_placeholder="{{page_number}}"
+          onChange={(query_params_fields) => onChange({ ...source, query_params_fields })}
+        />
+      </div>
+
+      <div className="panel-section">
         <h3>Extra Headers</h3>
         <RequestTemplatePlaceholders />
         <KeyValueEditor
@@ -165,10 +217,39 @@ export function ApiSourceEditor({
         />
       </div>
 
-      <HrmsAuthEditor
-        auth={source.auth}
-        onChange={(auth) => onChange({ ...source, auth })}
-      />
+      <div className="panel-section">
+        <h3>Fetch Token From API</h3>
+        <p className="field-hint">
+          When enabled, GeneralAdaptor calls auth.token_api first and uses the token as runtime
+          Bearer for this source. Set main auth type to Bearer.
+        </p>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={source.fetch_token_from_api}
+            onChange={(event) =>
+              onChange({ ...source, fetch_token_from_api: event.target.checked })
+            }
+          />
+          Enable token API fetch
+        </label>
+        {source.fetch_token_from_api && (
+          <TokenApiEditor
+            token_api={source.auth.token_api}
+            onChange={(token_api) =>
+              onChange({
+                ...source,
+                auth: {
+                  ...source.auth,
+                  token_api,
+                },
+              })
+            }
+          />
+        )}
+      </div>
+
+      <HrmsAuthEditor auth={source.auth} onChange={updateAuthCredentials} />
     </CollapsibleSection>
   );
 }

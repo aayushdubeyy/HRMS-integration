@@ -2,18 +2,23 @@ import type {
   ApiSourceFormConfig,
   ApiSourcePaginationExport,
   ApiSourcePaginationForm,
+  BodyEncodingForm,
   GeneralAdaptorConfig,
   GeneralAdaptorConfigExport,
   HrmsAuthFormConfig,
+  TokenApiFormConfig,
 } from '../types/hrmsConfig';
 import {
   DEFAULT_API_KEY_HEADER,
+  DEFAULT_BODY_ENCODING,
   DEFAULT_PAGINATION_DATE_FORMAT,
   DEFAULT_PAGINATION_PAGE_SIZE,
 } from '../constants/hrmsAuth';
 import { isLikelyEncryptedValue } from './encryptionService';
 
-export function createDefaultAuthConfig(): HrmsAuthFormConfig {
+type AuthCredentialsForm = Omit<HrmsAuthFormConfig, 'token_api'>;
+
+export function createDefaultAuthCredentials(): AuthCredentialsForm {
   return {
     auth_type: 'basic',
     content_type: 'application/json',
@@ -31,6 +36,26 @@ export function createDefaultAuthConfig(): HrmsAuthFormConfig {
     body_fields: [{ key: '', value: '', is_already_encrypted: false }],
     body_xml: '',
     body_xml_is_already_encrypted: false,
+  };
+}
+
+export function createDefaultTokenApiConfig(): TokenApiFormConfig {
+  return {
+    data_url: '',
+    method: 'post',
+    token_path: '',
+    headers: [{ key: '', value: '' }],
+    request_body_fields: [{ key: '', value: '' }],
+    query_params_fields: [{ key: '', value: '' }],
+    body_encoding: DEFAULT_BODY_ENCODING,
+    auth: createDefaultAuthCredentials(),
+  };
+}
+
+export function createDefaultAuthConfig(): HrmsAuthFormConfig {
+  return {
+    ...createDefaultAuthCredentials(),
+    token_api: createDefaultTokenApiConfig(),
   };
 }
 
@@ -52,6 +77,9 @@ export function createDefaultApiSource(): ApiSourceFormConfig {
     response_list_path: '',
     headers: [{ key: '', value: '' }],
     request_body_fields: [{ key: '', value: '' }],
+    query_params_fields: [{ key: '', value: '' }],
+    body_encoding: DEFAULT_BODY_ENCODING,
+    fetch_token_from_api: false,
     pagination: createDefaultPaginationConfig(),
     auth: createDefaultAuthConfig(),
   };
@@ -75,6 +103,23 @@ function keyValueRowsToRecord(
   return Object.keys(record).length > 0 ? record : undefined;
 }
 
+function normalizeBodyEncoding(value: unknown): BodyEncodingForm {
+  const encoding = String(value ?? '').toLowerCase();
+  if (
+    encoding === 'form' ||
+    encoding === 'form-urlencoded' ||
+    encoding === 'urlencoded'
+  ) {
+    return 'form-urlencoded';
+  }
+
+  return 'json';
+}
+
+function buildBodyEncodingExport(body_encoding: BodyEncodingForm): string | undefined {
+  return body_encoding === 'form-urlencoded' ? 'form-urlencoded' : undefined;
+}
+
 function buildPaginationExport(
   pagination: ApiSourcePaginationForm,
 ): ApiSourcePaginationExport | undefined {
@@ -93,7 +138,9 @@ function buildPaginationExport(
   return export_pagination;
 }
 
-function buildAuthBodyExport(auth: HrmsAuthFormConfig): string | Record<string, string> | undefined {
+function buildAuthBodyExport(
+  auth: AuthCredentialsForm,
+): string | Record<string, string> | undefined {
   if (auth.body_type === 'xml') {
     return auth.body_xml.trim() || undefined;
   }
@@ -111,7 +158,7 @@ function buildAuthBodyExport(auth: HrmsAuthFormConfig): string | Record<string, 
   return undefined;
 }
 
-function buildAuthExport(auth: HrmsAuthFormConfig): Record<string, unknown> {
+function buildAuthCredentialsExport(auth: AuthCredentialsForm): Record<string, unknown> {
   const export_auth: Record<string, unknown> = {
     auth_type: auth.auth_type,
     body_type: auth.body_type,
@@ -146,10 +193,43 @@ function buildAuthExport(auth: HrmsAuthFormConfig): Record<string, unknown> {
   return export_auth;
 }
 
+function buildTokenApiExport(token_api: TokenApiFormConfig): Record<string, unknown> {
+  const headers = keyValueRowsToRecord(token_api.headers);
+  const request_body = keyValueRowsToRecord(token_api.request_body_fields);
+  const query_params = keyValueRowsToRecord(token_api.query_params_fields);
+  const body_encoding = buildBodyEncodingExport(token_api.body_encoding);
+
+  return {
+    data_url: token_api.data_url.trim(),
+    method: token_api.method,
+    token_path: token_api.token_path.trim(),
+    auth: buildAuthCredentialsExport(token_api.auth),
+    ...(headers ? { headers } : {}),
+    ...(request_body ? { request_body } : {}),
+    ...(query_params ? { query_params } : {}),
+    ...(body_encoding ? { body_encoding } : {}),
+  };
+}
+
+function buildAuthExport(
+  auth: HrmsAuthFormConfig,
+  include_token_api: boolean,
+): Record<string, unknown> {
+  const export_auth = buildAuthCredentialsExport(auth);
+
+  if (include_token_api) {
+    export_auth.token_api = buildTokenApiExport(auth.token_api);
+  }
+
+  return export_auth;
+}
+
 function buildApiSourceExport(source: ApiSourceFormConfig) {
   const headers = keyValueRowsToRecord(source.headers);
   const request_body = keyValueRowsToRecord(source.request_body_fields);
+  const query_params = keyValueRowsToRecord(source.query_params_fields);
   const pagination = buildPaginationExport(source.pagination);
+  const body_encoding = buildBodyEncodingExport(source.body_encoding);
 
   return {
     ...(source.name.trim() ? { name: source.name.trim() } : {}),
@@ -160,8 +240,11 @@ function buildApiSourceExport(source: ApiSourceFormConfig) {
       : {}),
     ...(headers ? { headers } : {}),
     ...(request_body ? { request_body } : {}),
+    ...(query_params ? { query_params } : {}),
+    ...(body_encoding ? { body_encoding } : {}),
+    ...(source.fetch_token_from_api ? { fetch_token_from_api: true } : {}),
     ...(pagination ? { pagination } : {}),
-    auth: buildAuthExport(source.auth),
+    auth: buildAuthExport(source.auth, source.fetch_token_from_api),
   };
 }
 
@@ -189,6 +272,7 @@ function parseApiSourceImport(source: Record<string, unknown>, index: number): A
   const auth = parseAuthImport((source.auth as Record<string, unknown>) ?? {});
   const headers = parseKeyValueImport(source.headers);
   const request_body_fields = parseKeyValueImport(source.request_body);
+  const query_params_fields = parseKeyValueImport(source.query_params);
 
   return {
     source_id: `source-import-${index}`,
@@ -199,6 +283,12 @@ function parseApiSourceImport(source: Record<string, unknown>, index: number): A
     headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
     request_body_fields:
       request_body_fields.length > 0 ? request_body_fields : [{ key: '', value: '' }],
+    query_params_fields:
+      query_params_fields.length > 0 ? query_params_fields : [{ key: '', value: '' }],
+    body_encoding: normalizeBodyEncoding(
+      source.body_encoding ?? source.request_body_encoding,
+    ),
+    fetch_token_from_api: source.fetch_token_from_api === true,
     pagination: parsePaginationImport(source.pagination),
     auth,
   };
@@ -228,8 +318,8 @@ function parseKeyValueImport(value: unknown): Array<{ key: string; value: string
   }));
 }
 
-function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
-  const default_auth = createDefaultAuthConfig();
+function parseAuthCredentialsImport(auth: Record<string, unknown>): AuthCredentialsForm {
+  const default_auth = createDefaultAuthCredentials();
   const body_type = String(auth.body_type ?? 'none');
   const parsed_body_type =
     body_type === 'json' || body_type === 'form' || body_type === 'xml' ? body_type : 'none';
@@ -254,6 +344,40 @@ function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
     body_xml_is_already_encrypted:
       typeof auth.body === 'string' && isLikelyEncryptedValue(auth.body),
     body_fields: parseBodyFieldsImport(auth.body),
+  };
+}
+
+function parseTokenApiImport(value: unknown): TokenApiFormConfig {
+  const defaults = createDefaultTokenApiConfig();
+  if (!value || typeof value !== 'object') {
+    return defaults;
+  }
+
+  const token_api = value as Record<string, unknown>;
+  const headers = parseKeyValueImport(token_api.headers);
+  const request_body_fields = parseKeyValueImport(token_api.request_body);
+  const query_params_fields = parseKeyValueImport(token_api.query_params);
+
+  return {
+    data_url: String(token_api.data_url ?? ''),
+    method: token_api.method === 'get' ? 'get' : 'post',
+    token_path: String(token_api.token_path ?? ''),
+    headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
+    request_body_fields:
+      request_body_fields.length > 0 ? request_body_fields : [{ key: '', value: '' }],
+    query_params_fields:
+      query_params_fields.length > 0 ? query_params_fields : [{ key: '', value: '' }],
+    body_encoding: normalizeBodyEncoding(
+      token_api.body_encoding ?? token_api.request_body_encoding,
+    ),
+    auth: parseAuthCredentialsImport((token_api.auth as Record<string, unknown>) ?? {}),
+  };
+}
+
+function parseAuthImport(auth: Record<string, unknown>): HrmsAuthFormConfig {
+  return {
+    ...parseAuthCredentialsImport(auth),
+    token_api: parseTokenApiImport(auth.token_api),
   };
 }
 

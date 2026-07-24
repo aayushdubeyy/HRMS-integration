@@ -185,6 +185,20 @@ export type HrmsAuthFormConfig = {
   body_fields: HrmsAuthBodyField[];
   body_xml: string;
   body_xml_is_already_encrypted: boolean;
+  token_api: TokenApiFormConfig;
+};
+
+export type BodyEncodingForm = 'json' | 'form-urlencoded';
+
+export type TokenApiFormConfig = {
+  data_url: string;
+  method: 'get' | 'post';
+  token_path: string;
+  headers: Array<{ key: string; value: string }>;
+  request_body_fields: Array<{ key: string; value: string }>;
+  query_params_fields: Array<{ key: string; value: string }>;
+  body_encoding: BodyEncodingForm;
+  auth: Omit<HrmsAuthFormConfig, 'token_api'>;
 };
 
 export type ApiSourcePaginationForm = {
@@ -208,6 +222,9 @@ export type ApiSourceFormConfig = {
   response_list_path: string;
   headers: Array<{ key: string; value: string }>;
   request_body_fields: Array<{ key: string; value: string }>;
+  query_params_fields: Array<{ key: string; value: string }>;
+  body_encoding: BodyEncodingForm;
+  fetch_token_from_api: boolean;
   pagination: ApiSourcePaginationForm;
   auth: HrmsAuthFormConfig;
 };
@@ -224,6 +241,9 @@ export type GeneralAdaptorConfigExport = {
     response_list_path?: string;
     headers?: Record<string, string>;
     request_body?: Record<string, string>;
+    query_params?: Record<string, string>;
+    body_encoding?: string;
+    fetch_token_from_api?: boolean;
     pagination?: ApiSourcePaginationExport;
     auth: Record<string, unknown>;
   }>;

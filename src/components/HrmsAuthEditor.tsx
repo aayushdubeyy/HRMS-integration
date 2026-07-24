@@ -8,15 +8,24 @@ import {
 } from '../constants/hrmsAuth';
 import { SecretFieldInput } from './SecretFieldInput';
 
+type AuthCredentialsForm = Omit<HrmsAuthFormConfig, 'token_api'>;
+
 type HrmsAuthEditorProps = {
-  auth: HrmsAuthFormConfig;
-  onChange: (auth: HrmsAuthFormConfig) => void;
+  auth: AuthCredentialsForm;
+  onChange: (auth: AuthCredentialsForm) => void;
+  title?: string;
+  description?: string;
 };
 
-export function HrmsAuthEditor({ auth, onChange }: HrmsAuthEditorProps) {
-  function updateAuthField<K extends keyof HrmsAuthFormConfig>(
+export function HrmsAuthEditor({
+  auth,
+  onChange,
+  title = 'Authentication',
+  description = 'Matches HrmsAuth in chatbot-api. Secret values are decrypted at runtime via decryptSecretVal.',
+}: HrmsAuthEditorProps) {
+  function updateAuthField<K extends keyof AuthCredentialsForm>(
     field: K,
-    value: HrmsAuthFormConfig[K],
+    value: AuthCredentialsForm[K],
   ) {
     onChange({ ...auth, [field]: value });
   }
@@ -24,8 +33,8 @@ export function HrmsAuthEditor({ auth, onChange }: HrmsAuthEditorProps) {
   return (
     <div className="nested-card">
       <div className="panel-header">
-        <h3>Authentication</h3>
-        <p>Matches HrmsAuth in chatbot-api. Secret values are decrypted at runtime via decryptSecretVal.</p>
+        <h3>{title}</h3>
+        <p>{description}</p>
       </div>
 
       <div className="settings-grid">
@@ -36,7 +45,7 @@ export function HrmsAuthEditor({ auth, onChange }: HrmsAuthEditorProps) {
             onChange={(event) =>
               updateAuthField(
                 'auth_type',
-                event.target.value as HrmsAuthFormConfig['auth_type'],
+                event.target.value as AuthCredentialsForm['auth_type'],
               )
             }
           >
@@ -63,7 +72,7 @@ export function HrmsAuthEditor({ auth, onChange }: HrmsAuthEditorProps) {
           <select
             value={auth.body_type}
             onChange={(event) =>
-              updateAuthField('body_type', event.target.value as HrmsAuthFormConfig['body_type'])
+              updateAuthField('body_type', event.target.value as AuthCredentialsForm['body_type'])
             }
           >
             {BODY_TYPES.map((body_type) => (
