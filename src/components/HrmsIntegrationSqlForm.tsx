@@ -61,12 +61,13 @@ export function HrmsIntegrationSqlForm({
 
           <label>
             HRMS Type
-            <input
-              type="text"
+            <select
               value={form.hrms_type}
-              placeholder="general"
               onChange={(event) => updateField('hrms_type', event.target.value)}
-            />
+            >
+              <option value="general">general</option>
+              <option value="sftp">sftp</option>
+            </select>
           </label>
 
           <label>

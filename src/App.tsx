@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
+import { AdaptorChooser } from './components/AdaptorChooser';
 import { GeneralAdaptorForm } from './components/GeneralAdaptorForm';
 import { GeneralAdaptorConfigForm } from './components/GeneralAdaptorConfigForm';
+import { SftpAdaptorForm } from './components/SftpAdaptorForm';
+import { SftpAdaptorConfigForm } from './components/SftpAdaptorConfigForm';
 import { HrmsIntegrationSqlForm } from './components/HrmsIntegrationSqlForm';
 import { JsonPreview } from './components/JsonPreview';
 import { SqlPreview } from './components/SqlPreview';
@@ -14,6 +17,16 @@ import {
   createDefaultGeneralAdaptorConfigForm,
   parseGeneralAdaptorConfigImport,
 } from './utils/generalAdaptorConfigForm';
+import {
+  buildSftpInfoExport,
+  createDefaultSftpInfoConfig,
+  parseSftpInfoImport,
+} from './utils/sftpAdaptorConfig';
+import {
+  buildSftpConfigExport,
+  createDefaultSftpConfigForm,
+  parseSftpConfigImport,
+} from './utils/sftpAdaptorConfigForm';
 import {
   buildHrmsIntegrationInsertSql,
   createDefaultHrmsIntegrationSqlForm,
@@ -31,37 +44,53 @@ import {
 } from './utils/infoFieldExtensions';
 import { DEFAULT_DATE_FORMAT } from './constants/dateFormats';
 import type { GeneralAdaptorConfig, GeneralAdaptorInfoConfig } from './types/hrmsConfig';
+import type { AdaptorType, SftpConfigForm, SftpInfoConfig } from './types/sftpConfig';
 import './App.css';
 
-type AppTab = 'general_info' | 'general_config' | 'sql_insert';
+type AppTab = 'info' | 'config' | 'sql_insert';
 
 function App() {
-  const [active_tab, setActiveTab] = useState<AppTab>('general_info');
+  const [adaptor_type, setAdaptorType] = useState<AdaptorType | null>(null);
+  const [active_tab, setActiveTab] = useState<AppTab>('info');
   const [general_info_config, setGeneralInfoConfig] = useState<GeneralAdaptorInfoConfig>(
-    createDefaultGeneralAdaptorConfig(),
+    createDefaultGeneralAdaptorConfig,
   );
   const [general_adaptor_config, setGeneralAdaptorConfig] = useState<GeneralAdaptorConfig>(
-    createDefaultGeneralAdaptorConfigForm(),
+    createDefaultGeneralAdaptorConfigForm,
+  );
+  const [sftp_info_config, setSftpInfoConfig] = useState<SftpInfoConfig>(
+    createDefaultSftpInfoConfig,
+  );
+  const [sftp_adaptor_config, setSftpAdaptorConfig] = useState<SftpConfigForm>(
+    createDefaultSftpConfigForm,
   );
   const [sql_form, setSqlForm] = useState(createDefaultHrmsIntegrationSqlForm);
 
-  const exported_info_json = useMemo(
-    () => buildGeneralAdaptorExport(general_info_config),
-    [general_info_config],
-  );
+  const exported_info_json = useMemo(() => {
+    if (adaptor_type === 'sftp') {
+      return buildSftpInfoExport(sftp_info_config);
+    }
 
-  const exported_config_json = useMemo(
-    () => buildGeneralAdaptorConfigExport(general_adaptor_config),
-    [general_adaptor_config],
-  );
+    return buildGeneralAdaptorExport(general_info_config);
+  }, [adaptor_type, general_info_config, sftp_info_config]);
+
+  const exported_config_json = useMemo(() => {
+    if (adaptor_type === 'sftp') {
+      return buildSftpConfigExport(sftp_adaptor_config);
+    }
+
+    return buildGeneralAdaptorConfigExport(general_adaptor_config);
+  }, [adaptor_type, general_adaptor_config, sftp_adaptor_config]);
 
   const exported_json =
-    active_tab === 'general_info' ? exported_info_json : exported_config_json;
+    active_tab === 'info' ? exported_info_json : exported_config_json;
 
   const sql_validation = useMemo(() => validateHrmsIntegrationSqlForm(sql_form), [sql_form]);
 
   const generated_sql = useMemo(() => {
-    if (hasHrmsIntegrationSqlValidationErrors(sql_validation)) return '';
+    if (hasHrmsIntegrationSqlValidationErrors(sql_validation)) {
+      return '';
+    }
 
     try {
       return buildHrmsIntegrationInsertSql(sql_form);
@@ -70,33 +99,30 @@ function App() {
     }
   }, [sql_form, sql_validation]);
 
-  const preview_meta = useMemo(() => {
-    if (active_tab === 'general_info') {
-      return {
-        title: 'GeneralAdaptor Info JSON',
-        description: 'Copy this JSON into the HRMS integration info column.',
-        copy_button_label: 'Copy JSON',
-      };
-    }
+  const preview_meta = useMemo(
+    () => buildPreviewMeta(active_tab, adaptor_type),
+    [active_tab, adaptor_type],
+  );
 
-    if (active_tab === 'general_config') {
-      return {
-        title: 'GeneralAdaptor Config JSON',
-        description: 'Copy this JSON into the HRMS integration config column.',
-        copy_button_label: 'Copy JSON',
-      };
-    }
-
-    return {
-      title: 'Generated SQL',
-      description: 'Copy and run this INSERT against hrms_integrations.',
-      copy_button_label: 'Copy SQL',
-    };
-  }, [active_tab]);
+  if (!adaptor_type) {
+    return (
+      <AdaptorChooser
+        onSelect={(selected_adaptor_type) => {
+          setAdaptorType(selected_adaptor_type);
+          setActiveTab('info');
+          setSqlForm((current_form) => ({
+            ...current_form,
+            hrms_type: selected_adaptor_type,
+          }));
+        }}
+      />
+    );
+  }
 
   function loadInfoJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
       ...current_form,
+      hrms_type: adaptor_type,
       info_json: JSON.stringify(exported_info_json, null, 2),
     }));
   }
@@ -104,97 +130,131 @@ function App() {
   function loadConfigJsonIntoSqlForm() {
     setSqlForm((current_form) => ({
       ...current_form,
+      hrms_type: adaptor_type,
       config_json: JSON.stringify(exported_config_json, null, 2),
     }));
   }
 
   function importJson() {
     const raw_json = window.prompt(
-      active_tab === 'general_config'
+      active_tab === 'config'
         ? 'Paste HRMS config JSON to import'
         : 'Paste HRMS info JSON to import',
     );
-    if (!raw_json) return;
+    if (!raw_json) {
+      return;
+    }
 
     try {
       const parsed_json = JSON.parse(raw_json);
-
-      if (active_tab === 'general_config') {
-        setGeneralAdaptorConfig(parseGeneralAdaptorConfigImport(parsed_json));
-        return;
-      }
-
-      setGeneralInfoConfig({
-        ...parseAdvancedSettingsFromImport(parsed_json),
-        date_format: parsed_json.date_format ?? DEFAULT_DATE_FORMAT,
-        conditional_field_transformations: parseConditionalTransformationsFromImport(
-          parsed_json.conditional_field_transformations,
-        ),
-        mandatoryFields: parsed_json.mandatoryFields ?? [],
-        response_list_path: parsed_json.response_list_path ?? '',
-        date_fields_path_mapping: parsed_json.date_fields_path_mapping ?? {},
-        path_mapping: parsed_json.path_mapping ?? {},
-        mapping: parsed_json.mapping ?? {},
-        phone_fields_to_transform: parsed_json.phone_fields_to_transform ?? [],
-        field_type_overrides: deriveFieldTypeOverridesFromImport(
-          (parsed_json.mapping as Record<string, string>) ?? {},
-          (parsed_json.path_mapping as Record<string, string>) ?? {},
-          (parsed_json.date_fields_path_mapping as Record<string, string>) ?? {},
-        ),
-        composite_fields: parseCompositeFieldsImport(
-          parsed_json.composite_fields,
-          (parsed_json.mapping as Record<string, string>) ?? {},
-        ),
-        mobile_sanitize_fields: parseMobileSanitizeFieldsImport(
-          parsed_json.mobile_sanitize_fields,
-          (parsed_json.mapping as Record<string, string>) ?? {},
-        ),
-        employee_restriction_config: parseEmployeeRestrictionImport(
-          parsed_json.employee_restriction_config,
-        ),
-        customMandatoryFields: parseStringArray(parsed_json.customMandatoryFields),
-        exclude_employee_codes: parseExcludeEmployeeCodes(parsed_json.exclude_employee_codes),
-        dont_insert_inactive_employees: parsed_json.dont_insert_inactive_employees === true,
-        leaving_date_format: String(parsed_json.leaving_date_format ?? ''),
-        modify_full_name: parsed_json.modify_full_name !== false,
-      });
+      applyImportedJson(parsed_json);
     } catch {
       window.alert('Invalid JSON. Please check the pasted content and try again.');
     }
   }
+
+  function applyImportedJson(parsed_json: Record<string, unknown>) {
+    if (adaptor_type === 'sftp') {
+      applySftpImport(parsed_json);
+      return;
+    }
+
+    applyGeneralImport(parsed_json);
+  }
+
+  function applySftpImport(parsed_json: Record<string, unknown>) {
+    if (active_tab === 'config') {
+      setSftpAdaptorConfig(parseSftpConfigImport(parsed_json));
+      return;
+    }
+
+    setSftpInfoConfig(parseSftpInfoImport(parsed_json));
+  }
+
+  function applyGeneralImport(parsed_json: Record<string, unknown>) {
+    if (active_tab === 'config') {
+      setGeneralAdaptorConfig(parseGeneralAdaptorConfigImport(parsed_json));
+      return;
+    }
+
+    setGeneralInfoConfig({
+      ...parseAdvancedSettingsFromImport(parsed_json),
+      date_format: String(parsed_json.date_format ?? DEFAULT_DATE_FORMAT),
+      conditional_field_transformations: parseConditionalTransformationsFromImport(
+        parsed_json.conditional_field_transformations,
+      ),
+      mandatoryFields: parseStringArray(parsed_json.mandatoryFields),
+      response_list_path: String(parsed_json.response_list_path ?? ''),
+      date_fields_path_mapping: asStringRecord(parsed_json.date_fields_path_mapping),
+      path_mapping: asStringRecord(parsed_json.path_mapping),
+      mapping: asStringRecord(parsed_json.mapping),
+      phone_fields_to_transform: parseStringArray(parsed_json.phone_fields_to_transform),
+      field_type_overrides: deriveFieldTypeOverridesFromImport(
+        asStringRecord(parsed_json.mapping),
+        asStringRecord(parsed_json.path_mapping),
+        asStringRecord(parsed_json.date_fields_path_mapping),
+      ),
+      composite_fields: parseCompositeFieldsImport(
+        parsed_json.composite_fields,
+        asStringRecord(parsed_json.mapping),
+      ),
+      mobile_sanitize_fields: parseMobileSanitizeFieldsImport(
+        parsed_json.mobile_sanitize_fields,
+        asStringRecord(parsed_json.mapping),
+      ),
+      employee_restriction_config: parseEmployeeRestrictionImport(
+        parsed_json.employee_restriction_config,
+      ),
+      customMandatoryFields: parseStringArray(parsed_json.customMandatoryFields),
+      exclude_employee_codes: parseExcludeEmployeeCodes(parsed_json.exclude_employee_codes),
+      dont_insert_inactive_employees: parsed_json.dont_insert_inactive_employees === true,
+      leaving_date_format: String(parsed_json.leaving_date_format ?? ''),
+      modify_full_name: parsed_json.modify_full_name !== false,
+    });
+  }
+
+  const header_copy = getAdaptorHeaderCopy(adaptor_type);
 
   return (
     <main className="app-shell">
       <header className="app-header">
         <div>
           <p className="eyebrow">Infeedo HRMS</p>
-          <h1>GeneralAdaptor Builder</h1>
-          <p className="subtitle">
-            Build GeneralAdaptor info and config, then generate hrms_integrations SQL.
-          </p>
+          <h1>{header_copy.title}</h1>
+          <p className="subtitle">{header_copy.subtitle}</p>
         </div>
 
-        {active_tab !== 'sql_insert' && (
-          <div className="header-actions">
+        <div className="header-actions">
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => {
+              setAdaptorType(null);
+              setActiveTab('info');
+            }}
+          >
+            Back
+          </button>
+          {active_tab !== 'sql_insert' && (
             <button type="button" className="button-secondary" onClick={importJson}>
               Import JSON
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <div className="tab-bar">
         <button
           type="button"
-          className={`tab-button ${active_tab === 'general_info' ? 'tab-active' : ''}`}
-          onClick={() => setActiveTab('general_info')}
+          className={`tab-button ${active_tab === 'info' ? 'tab-active' : ''}`}
+          onClick={() => setActiveTab('info')}
         >
           Info
         </button>
         <button
           type="button"
-          className={`tab-button ${active_tab === 'general_config' ? 'tab-active' : ''}`}
-          onClick={() => setActiveTab('general_config')}
+          className={`tab-button ${active_tab === 'config' ? 'tab-active' : ''}`}
+          onClick={() => setActiveTab('config')}
         >
           Config
         </button>
@@ -209,13 +269,22 @@ function App() {
 
       <div className="layout-grid">
         <div className="form-column">
-          {active_tab === 'general_info' && (
+          {active_tab === 'info' && adaptor_type === 'general' && (
             <GeneralAdaptorForm config={general_info_config} onChange={setGeneralInfoConfig} />
           )}
-          {active_tab === 'general_config' && (
+          {active_tab === 'info' && adaptor_type === 'sftp' && (
+            <SftpAdaptorForm config={sftp_info_config} onChange={setSftpInfoConfig} />
+          )}
+          {active_tab === 'config' && adaptor_type === 'general' && (
             <GeneralAdaptorConfigForm
               config={general_adaptor_config}
               onChange={setGeneralAdaptorConfig}
+            />
+          )}
+          {active_tab === 'config' && adaptor_type === 'sftp' && (
+            <SftpAdaptorConfigForm
+              config={sftp_adaptor_config}
+              onChange={setSftpAdaptorConfig}
             />
           )}
           {active_tab === 'sql_insert' && (
@@ -251,6 +320,52 @@ function App() {
         </div>
       </div>
     </main>
+  );
+}
+
+function buildPreviewMeta(active_tab: AppTab, adaptor_type: AdaptorType | null) {
+  if (active_tab === 'sql_insert') {
+    return {
+      title: 'Generated SQL',
+      description: 'Copy and run this INSERT against hrms_integrations.',
+      copy_button_label: 'Copy SQL',
+    };
+  }
+
+  const adaptor_label = adaptor_type === 'sftp' ? 'SFTP Adaptor' : 'GeneralAdaptor';
+  const column_label = active_tab === 'info' ? 'Info' : 'Config';
+
+  return {
+    title: `${adaptor_label} ${column_label} JSON`,
+    description: `Copy this JSON into the HRMS integration ${column_label.toLowerCase()} column.`,
+    copy_button_label: 'Copy JSON',
+  };
+}
+
+function getAdaptorHeaderCopy(adaptor_type: AdaptorType) {
+  if (adaptor_type === 'sftp') {
+    return {
+      title: 'SFTP Adaptor Builder',
+      subtitle: 'Build SFTP info and config, then generate hrms_integrations SQL.',
+    };
+  }
+
+  return {
+    title: 'GeneralAdaptor Builder',
+    subtitle: 'Build GeneralAdaptor info and config, then generate hrms_integrations SQL.',
+  };
+}
+
+function asStringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry_value]) => [
+      key,
+      String(entry_value ?? ''),
+    ]),
   );
 }
 
